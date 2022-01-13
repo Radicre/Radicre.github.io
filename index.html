@@ -1,5 +1,5 @@
 <html>
-	<body style="background-color: AAAAAA">
+	<body style="background-color: BBBBBB">
 		<h1>
 			Computer guesses your Wordle
 		</h1>
@@ -20,14 +20,16 @@
 document.getElementById('input').focus();
 document.getElementById('submitbtn').addEventListener('click', setupGame);
 document.getElementById('input').onkeypress = function(e) {
-	if (e.keyCode === 13)
-	setupGame();
+	// keycode for Enter key
+	if (e.keyCode === 13) {
+		setupGame();
+	}
 }
 
 let content = '';
 let knownInformation = {};
 let remainingWords = {};
-let wordLength = 5;
+const wordLength = 5;
 
 function setupGame() {
 	document.getElementById('result').innerHTML = '';
@@ -160,7 +162,7 @@ function updateKnownInformation(guess, resultHint) {
 	const greenAndYellowQuantity = {};
 	const yellowQuantity = {};
 
-	// If a hint is Black we know the exact number of times this letter should appear in the word.  Track that here.
+	// If a hint is Black we now know the exact number of times this letter should appear in the word and track it here.
 	const exactQuantityFound = {};
 
 	// Green pass
@@ -202,7 +204,7 @@ function updateKnownInformation(guess, resultHint) {
 	}
 
 	// Black pass
-	// This is a more complicated case.  We will need to look at the quantities in order to decide what to do.
+	// This is a more complicated case.  We will need to look at the quantities of Y hints in order to decide what to do.
 	for (let index = 0; index < wordLength; index++) {
 		const guessLetter = guess[index];
 
@@ -215,7 +217,7 @@ function updateKnownInformation(guess, resultHint) {
 
 		yellowQuantity[guessLetter] = yellowQuantity[guessLetter] ? yellowQuantity[guessLetter].quantity : 0;
 
-		// If there are no hints for this letter that are Y, then for all unsolvedpositions we can mark the current letter as no longer valid
+		// If there are no hints for this letter that are Y, then for all unsolved positions we can mark the current letter as no longer valid
 		if (yellowQuantity[guessLetter] == 0) {
 			for (let knownInfoIndex = 0; knownInfoIndex < wordLength; knownInfoIndex++) {
 				knownInformation[knownInfoIndex] = knownInformation[knownInfoIndex] || {};
@@ -298,7 +300,7 @@ function wordIsInvalid(word) {
 	return false;
 }
 
-// Word metadata reformats the word into a dictonary to make letter positions easier
+// Word metadata reformats the word into a dictonary to make letter comparisons easier
 // Key - the letter
 // Value - index positions of the letter
 // There is an additional key 'text', which allows us to use the word in the original string form
@@ -325,7 +327,10 @@ function compareAndGetHint(guess, wordMetadata) {
 	const result = '';
 
 	// BYG = black, yellow, green, for the different hint states
-	const hint = ['B', 'B', 'B', 'B', 'B'];
+	const hint = [];
+	for (let index = 0; index < wordLength; index++) {
+		hint.push('B');
+	}
 
 	// Keeping track of the amount a letter is encountered is required to determine when a hint should be Yellow or Black
 	const encountered = {};
@@ -374,10 +379,10 @@ function htmlColorFormatGuess(guess, hint) {
 				colorFormattedGuess += guess[index];
 				break;
 			case 'Y':
-				colorFormattedGuess += '<font color="yellow">' + guess[index] + '</font>';
+				colorFormattedGuess += '<font color="#ebf065">' + guess[index] + '</font>';
 				break;
 			case 'G':
-				colorFormattedGuess += '<font color="green">' + guess[index] + '</font>';
+				colorFormattedGuess += '<font color="#008f3b">' + guess[index] + '</font>';
 				break;
 		}
 	}
@@ -385,6 +390,8 @@ function htmlColorFormatGuess(guess, hint) {
 	return colorFormattedGuess;
 }
 
+// Todo: wordle accepts all these as valid inputs but the obscure words are not valid solutions.
+// Make two lists for valid words and valid solutions.
 const allWords = {
 	'aahed': true,
 	'aalii': true,
