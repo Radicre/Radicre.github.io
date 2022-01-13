@@ -32,7 +32,7 @@ let wordLength = 5;
 function setupGame() {
 	document.getElementById('result').innerHTML = '';
 
-	const input = document.getElementById('input').value;
+	const input = document.getElementById('input').value.toLowerCase();
 
 	const isValid = validate(input);
 	if (!isValid) {
@@ -45,6 +45,7 @@ function setupGame() {
 	knownInformation = {
 		'contains': {}
 	};
+
 	for (let index = 0; index < wordLength; index++) {
 		const possibleLetters = {
 			'a': true,
@@ -118,6 +119,10 @@ function playGame(wordMetadata) {
 	while (currentGuess <= maxGuesses) {
 		const guess = obtainGuess();
 
+		if (!guess) {
+			console.log('no guess available');
+		}
+
 		const resultHint = compareAndGetHint(guess, wordMetadata);
 		renderContent('guess is: ' + htmlColorFormatGuess(guess.toUpperCase(), resultHint) + '<br>');
 
@@ -141,18 +146,25 @@ function playGame(wordMetadata) {
 
 function obtainGuess() {
 	// all the strategy goes here, for now just return the first one like a naive person
-	// return 'swiss';
-
 	for (const word in remainingWords) {
 		return word;
 	}
 }
 
 function updateKnownInformation(guess, resultHint) {			
-	// Green pass
-	const quantities = {};
-	const exactQuantities = {};
+	// It is easier to conceptualize what is happening when doing it in three passes, so we will use a three pass approach
 
+	// Use this to keep track of the quantities a letter has been encountered.  This is necessary for doing the Black pass.
+	
+	// Keeps track of number of times a letter has been encountered and the hint colour
+	const greenAndYellowQuantity = {};
+	const yellowQuantity = {};
+
+	// If a hint is Black we know the exact number of times this letter should appear in the word.  Track that here.
+	const exactQuantityFound = {};
+
+	// Green pass
+	// We update known information such that for the given letter position, only the current letter is valid
 	for (let index = 0; index < wordLength; index++) {
 		const guessLetter = guess[index];
 
@@ -167,11 +179,11 @@ function updateKnownInformation(guess, resultHint) {
 			knownInformation[index][guessLetter] = true;
 		}
 
-		quantities[guessLetter] = quantities[guessLetter] || {};
-		quantities[guessLetter].G = quantities[guessLetter].G ? quantities[guessLetter].G + 1 : 1;
+		greenAndYellowQuantity[guessLetter] = greenAndYellowQuantity[guessLetter] ? greenAndYellowQuantity[guessLetter] + 1 : 1;
 	}
 
 	// Yellow pass
+	// We update known information such that for the current letter position, the current letter is no longer valid
 	for (let index = 0; index < wordLength; index++) {
 		const guessLetter = guess[index];
 
@@ -185,11 +197,12 @@ function updateKnownInformation(guess, resultHint) {
 			}
 		}
 
-		quantities[guessLetter] = quantities[guessLetter] || {};
-		quantities[guessLetter].Y = quantities[guessLetter].Y ? quantities[guessLetter].Y + 1 : 1;
+		yellowQuantity[guessLetter] = yellowQuantity[guessLetter] ? yellowQuantity[guessLetter] + 1 : 1;
+		greenAndYellowQuantity[guessLetter] = greenAndYellowQuantity[guessLetter] ? greenAndYellowQuantity[guessLetter] + 1 : 1;
 	}
 
 	// Black pass
+	// This is a more complicated case.  We will need to look at the quantities in order to decide what to do.
 	for (let index = 0; index < wordLength; index++) {
 		const guessLetter = guess[index];
 
@@ -197,42 +210,49 @@ function updateKnownInformation(guess, resultHint) {
 			continue;
 		}
 
-		quantities[guessLetter] = quantities[guessLetter] || {};
+		// We update known information such that for the current letter position, the current letter is no longer valid
+		knownInformation[index][guessLetter] = false;
 
-		// if we have a Yellow of the same letter, we can only rule out the current position (since Yellow indicates the letter can be in other positions)
-		if (quantities[guessLetter] && quantities[guessLetter].Y) {
-			knownInformation[index][guessLetter] = false;
-		}
-		// there are only Green of the same letter, or there are no duplicates for this letter.  in either case we can mark off all remaining positions
-		else {
+		yellowQuantity[guessLetter] = yellowQuantity[guessLetter] ? yellowQuantity[guessLetter].quantity : 0;
+
+		// If there are no hints for this letter that are Y, then for all unsolvedpositions we can mark the current letter as no longer valid
+		if (yellowQuantity[guessLetter] == 0) {
 			for (let knownInfoIndex = 0; knownInfoIndex < wordLength; knownInfoIndex++) {
 				knownInformation[knownInfoIndex] = knownInformation[knownInfoIndex] || {};
 
-				if (!knownInformation[knownInfoIndex].found) {
+				if (knownInformation[knownInfoIndex].found) {
+					continue;
+				}
+
+				if (knownInformation[knownInfoIndex][guessLetter]) {
 					knownInformation[knownInfoIndex][guessLetter] = false;
 				}
 			}
 		}
 
-		exactQuantities[guessLetter] = true;
+		// Because we have a Black hint, we now know the exact quantity this letter appears in the word, so we can track this information to help us prune more words
+		// Note that you must have a Black hint to do this, with only a G or Y hint, you do not know if further duplicates of the letter exist.
+		exactQuantityFound[guessLetter] = true;
 	}
 
-	for (const letter in quantities) {
+	// Update the letter's minimum quantity based on total number of G & Y hints encountered for the letter.
+	// We use these quantities to prune solutions (e.g. if we know there are at least two A, then all words without at least two A are invalid)
+	for (const letter in greenAndYellowQuantity) {
 		knownInformation.contains[letter] = knownInformation.contains[letter] || {};
 
-		if (!knownInformation.contains[letter].exact) {
-			knownInformation.contains[letter].quantity = knownInformation.contains[letter].quantity || 0;
+		if (knownInformation.contains[letter].exact) {
+			continue;
+		}
 
-			const quanitiesG = quantities[letter].G || 0;
-			const quanitiesY = quantities[letter].Y || 0;
-			const totalQuantity = quanitiesG + quanitiesY;
-			if (totalQuantity > knownInformation.contains[letter].quantity) {
-				knownInformation.contains[letter].quantity = totalQuantity;
-			}
+		knownInformation.contains[letter].quantity = knownInformation.contains[letter].quantity || 0;
+
+		if (greenAndYellowQuantity[letter] > knownInformation.contains[letter].quantity) {
+			knownInformation.contains[letter].quantity = greenAndYellowQuantity[letter];
 		}
 	}
 
-	for (const letter in exactQuantities) {
+	// If we know the exact quantity a letter should appear in the word, we set a flag to denote this.
+	for (const letter in exactQuantityFound) {
 		knownInformation.contains[letter] = knownInformation.contains[letter] || {};
 		knownInformation.contains[letter].exact = true;
 	}
@@ -252,16 +272,16 @@ function wordIsInvalid(word) {
 	for (let index = 0; index < wordLength; index++) {
 		const letter = word[index];
 		
-		// contains letter in this position that is no longer valid
+		// Invalid because it contains a letter that is no longer valid for this position
 		if (!knownInformation[index][letter]) {
 			return true;
 		}
 	}
 
-	// word does meet quantity requirements
+	// Invalid because word does meet letter quantity requirements
 	const wordMetadata = getWordMetadata(word);
 	for (const letter in knownInformation.contains) {
-		const quantityExpected = knownInformation.contains[letter].quantity;
+		const quantityExpected = knownInformation.contains[letter].quantity || 0;
 		const exact = knownInformation.contains[letter].exact;
 
 		wordMetadata[letter] = wordMetadata[letter] || [];
@@ -278,6 +298,10 @@ function wordIsInvalid(word) {
 	return false;
 }
 
+// Word metadata reformats the word into a dictonary to make letter positions easier
+// Key - the letter
+// Value - index positions of the letter
+// There is an additional key 'text', which allows us to use the word in the original string form
 function getWordMetadata(input) {
 	const wordMetadata = {
 		'text': input
@@ -301,19 +325,11 @@ function compareAndGetHint(guess, wordMetadata) {
 	const result = '';
 
 	// BYG = black, yellow, green, for the different hint states
-	let overallHint = ['B', 'B', 'B', 'B', 'B'];
+	const hint = ['B', 'B', 'B', 'B', 'B'];
 
-	let matched = {
-		'0': false,
-		'1': false,
-		'2': false,
-		'3': false,
-		'4': false
-	};
-
-	let encountered = {};
-
-	const increaseCounter = function(letter) {
+	// Keeping track of the amount a letter is encountered is required to determine when a hint should be Yellow or Black
+	const encountered = {};
+	const increaseLetterEncounter = function(letter) {
 		encountered[letter] = encountered[letter] ? encountered[letter] + 1 : 1;
 	}
 
@@ -323,15 +339,14 @@ function compareAndGetHint(guess, wordMetadata) {
 		const wordLetter = wordMetadata.text[index];
 
 		if (guessLetter == wordLetter) {
-			overallHint[index] = 'G';
-			matched[index] = true;
-			increaseCounter(guessLetter);
+			hint[index] = 'G';
+			increaseLetterEncounter(guessLetter);
 		}
 	}
 
-	// Yellow and Black pass
-	for (const index in matched) {
-		if (matched[index]) {
+	// Yellow pass
+	for (const index in hint) {
+		if (hint[index] == 'G') {
 			continue;
 		}
 
@@ -339,18 +354,14 @@ function compareAndGetHint(guess, wordMetadata) {
 
 		if (wordMetadata[guessLetter]) {
 			if (wordMetadata[guessLetter].length > (encountered[guessLetter] || 0)) {
-				overallHint[index] = 'Y';
-
-				if (wordMetadata[guessLetter].includes(index)) {
-					overallHint[index] = 'G'
-				}
+				hint[index] = 'Y';
 			}
 		}
 
-		increaseCounter(guessLetter);
+		increaseLetterEncounter(guessLetter);
 	}
 
-	return overallHint;
+	return hint;
 }
 
 function htmlColorFormatGuess(guess, hint) {
