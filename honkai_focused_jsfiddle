@@ -1,0 +1,155 @@
+// change this to 1 for single trial
+var number_of_trials = 1000000;
+
+// change this to 30 or 50 for a 30 or 50 pity banner respectively
+var max_pity = 30;
+
+var trials = 0;
+var runningTotal = 0;
+var minimum = Number.MAX_SAFE_INTEGER;
+var maximum = 0;
+
+while (trials < number_of_trials) {
+	var pity_pulls = 1;
+  var ten_pull_pity = 1;
+  var total_pulls = 0;
+  var weapon_received = false;
+  var t_stig_received = false;
+  var m_stig_received = false;
+  var b_stig_received = false;
+  var scale_drop_rate_to_four_star_only = false;
+
+  while (true) {
+  	if (weapon_received && t_stig_received && m_stig_received && b_stig_received)
+    {
+    	break;
+    }
+  
+  	var reset_pity = false;
+    var reset_ten_pull_pity = false;
+    
+    var rng = Math.random();
+  
+		// guaranteed win
+		if (pity_pulls == max_pity) {
+    	// build a drop table with only the featured items that have not yet been obtained
+			// and scale the drop rate down accordingly
+    	var droprate = 0;
+      var droptable = [];
+      
+      if (!weapon_received) {
+      	droprate += 0.02479;
+        droptable.push({item: 'w', rate: droprate})
+      }
+      if (!t_stig_received) {
+      	droprate += 0.0124;
+        droptable.push({item: 't', rate: droprate})
+      }
+      if (!m_stig_received) {
+        droprate += 0.0124;
+        droptable.push({item: 'm', rate: droprate})
+      }
+      if (!b_stig_received) {
+      	droprate += 0.0124;
+        droptable.push({item: 'b', rate: droprate})
+      }
+      
+      rng *= droprate;
+    
+    	var item_obtained = null;
+    	for (var index = 0; index < droptable.length; index++) {
+      	if (rng < droptable[index].rate) {
+        	item_obtained = droptable[index].item;
+        }
+      }
+
+			switch (item_obtained) {
+      	case 'w':
+        	weapon_received = true;
+          break;
+        case 't':
+        	t_stig_received = true;
+          break;
+        case 'm':
+        	m_stig_received = true;
+          break;
+        case 'b':
+        	b_stig_received = true;
+          break;
+      }
+    
+      reset_pity = true;
+      reset_ten_pull_pity = true;
+    }
+    // non-guaranteed pull
+    else {
+      // scale the drop rate to 4* items only if we are at 10 pity.  4.958% is 4* weapon, 7.437% is 4* stigmata
+      if (ten_pull_pity == 10) {
+        rng *= (0.04958 + 0.07437)
+      }
+
+      // weap is 2.479%
+      if (rng < 0.02479 && !weapon_received) {
+        weapon_received = true;
+        reset_pity = true;
+        reset_ten_pull_pity = true;
+      }
+      // T is the next 1.24%
+      else if (rng < (0.02479 + 0.0124) && !t_stig_received) {
+        t_stig_received = true;
+        reset_pity = true;
+        reset_ten_pull_pity = true;
+      }
+      // M is the next 1.24%
+      else if (rng < (0.02479 + 0.0124 + 0.0124) && !m_stig_received) {
+        m_stig_received = true;
+        reset_pity = true;
+        reset_ten_pull_pity = true;
+      }
+      // B is the next 1.24%
+      else if (rng < (0.02479 + 0.0124 + 0.0124 + 0.0124) && !b_stig_received) {
+        b_stig_received = true;
+        reset_pity = true;
+        reset_ten_pull_pity = true;
+      }
+      // a 4* drops, so we reset 10 pull pity only
+      else if (rng < (0.04958 + 0.07437)) {
+        reset_ten_pull_pity = true;
+      }
+    }
+    
+    if (reset_ten_pull_pity) {
+    	ten_pull_pity = 1;
+    }
+    else {
+    	ten_pull_pity++;
+    }
+
+    if (reset_pity) {
+      pity_pulls = 1;
+    }
+    else {
+			pity_pulls++;
+    }
+    
+    total_pulls++;
+	}
+
+
+  // added this mostly for testing
+  // in 1000000 trials, the expected values are 4 and 120
+  
+	if (total_pulls < minimum) {
+  	minimum = total_pulls;
+  }
+  if (total_pulls > maximum) {
+  	maximum = total_pulls;
+  }
+  
+  
+  runningTotal += total_pulls;
+	trials++;
+}
+
+var average = runningTotal / number_of_trials;
+window.alert('avg pulls: ' + average);
